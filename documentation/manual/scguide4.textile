@@ -7,8 +7,8 @@ h2. <a>Creating the 'show' action</a>
 To display the post details page, we will need a new action method to the Application controller. Let's call it **show()**:
 
 bc. def show(id: Long) {
-	val post = findById[Post](id)
-	render(post)
+	val post = Posts.(id).getOrNotFound
+	Template(post)
 }
 
 As you can see this action is pretty simple. We declare the **id** method parameter to automatically retrieve the HTTP **'id'** parameter as a Long  object. This parameter will be extracted either from the queryString, from the URL path or from the request body.
@@ -77,11 +77,11 @@ To allow users to navigate easily through posts, we will add a pagination mechan
 bc. import play.db.jpa.QueryFunctions._
 ...
 def previous(): Post = {
-    find[Post]("postedAt < ? order by postedAt desc", postedAt).first
+    Posts.find("postedAt < ? order by postedAt desc", postedAt).first.orNull
 }
  
 def next(): Post = {
-    find[Post]("postedAt > ? order by postedAt asc", postedAt).first
+    Posts.find("postedAt > ? order by postedAt asc", postedAt).first.orNull
 }
 
 Since we will call these methods several times during a request it could be optimized, but it's good enough for now. Also, add the pagination links in top of the show.html template (before the **#{display/}** tag):
@@ -110,9 +110,9 @@ h2. <a>Adding the comment form</a>
 Now it's time to set up a comments form. We'll start by adding the **postComment** action method to the Application controller.
 
 bc. def postComment(postId: Long, author: String, content: String) {
-    val post = findById[Post](postId)
+    val post = Posts.findById(postId).getOrNotFound
     post.addComment(author, content)
-    show(postId)
+    Action(show(postId))
 }
 
 As you see we just reuse the **addComment()** method we previously added to the Post class.
@@ -144,12 +144,14 @@ h2. <a>Adding validation</a>
 Currently we don't validate the form content before creating the comment. We would like to set both fields as required. We can easily use the play validation mechanism to ensure that HTTP parameters are correctly filled. Modify the **postComment** action to add validation annotations and check that no error occurs:
 
 bc. def postComment(postId: Long, @Required author: String, @Required content: String) {
-    val post = findById[Post](postId)
+    val post = Posts.findById(postId).getOrNotFound
     if (Validation.hasErrors()) {
-        render("Application/show.html", post)
+        "@show".asTemplate(post)
     }
-    post.addComment(author, content)
-    show(postId)
+    else{
+      post.addComment(author, content)
+      Action(show(postId))
+    }
 }
 
 p(note). **Don't forget** to import play.data.validation._ as well.
@@ -213,14 +215,16 @@ First we will display a success message after a comment is successfully posted. 
 
 Modify the **postComment** action to add a success message:
 
-bc. public static void postComment(Long postId, @Required String author, @Required String content) {
-    Post post = Post.findById(postId);
+bc. def postComment(postId: Long, @Required author: String, @Required content: String) {
+    val post = Posts.findById(postId).getOrNotFound
     if(validation.hasErrors()) {
-        render("Application/show.html", post);
+        "@sho".asTemplate(post)
     }
-    post.addComment(author, content);
-    flash.success("Thanks for posting, %s", author);
-    show(postId);
+    else {
+      post.addComment(author, content)
+      flash.success("Thanks for posting, %s", author)
+      Action(show(postId))
+    }
 }
 
 and display the success message in the **show.html** if present (add it at the top the page):

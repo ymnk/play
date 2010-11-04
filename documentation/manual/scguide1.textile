@@ -99,19 +99,19 @@ bc. package controllers
 import play._
 import play.mvc._
  
-object Application extends Actions {
+object Application extends Controller {
     
-    def index = render()
+    def index = Template()
     
 }
 
-As you see, a controller is not a class but an object. It extends the **play.mvc.Actions** class. This class provides all useful methods for controllers, like the **render()** method we use in the index action.
+As you see, a controller is not a class but an object. It extends the **play.mvc.Controller** class. This class provides all useful methods for controllers, like the **Template()** method we use in the index action.
 
 Scala objects are always single instances (singletons) and are automatically initialized the first time one of their methods is called. All their methods correspond with **static** methods in Java.
 
-The type signature of the index action is not visible here, it's __inferred__ from the body of the method. If we wanted to be explicit, we would write **def index(): Unit = {…}** which means: a method with no parameters and no return value (**Unit** is Scala's name for Java's **void**).
+The type signature of the index action is not visible here, it's __inferred__ from the body of the method.
 
-The default index action is simple: it calls the **render()** method which tells play to render a template. Using a template is the most common way (but not the only one) to generate the HTTP response.
+The default index action is simple: it calls the **Template()** method which tells play to render a template. Using a template is the most common way (but not the only one) to generate the HTTP response.
 
 Templates are simple text files that live in the **/app/views** directory. Because we didn't specify a template, the default one for this action will be used: **Application/index.html**
 
@@ -158,7 +158,7 @@ Ok, let's correct the error, and make a real modification:
 
 bc. def index {
     println("Yop")
-    render()
+    Template()
 }
 
 Notice that we've added curly braces now that the index action involves multiple statements and, because this method has no return value, we've removed the equals sign.

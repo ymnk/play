@@ -16,13 +16,11 @@ If you don't know JPA, you can read "some of these simple presentations":http://
 
 h2. <a>Starting with the User class</a>
 
-We will start to code the blog engine by creating the User class. Create a new file **/yabe/app/models/User.scala**, and declare a first implementation of the User class:
+We will start to code the blog engine by creating the User class. Create a new file **/yabe/app/models/user.scala**, and declare a first implementation of the User class:
 
 bc. package models
- 
-import java.util._
-import javax.persistence._
- 
+
+import java.util._ 
 import play.db.jpa._
  
 @Entity
@@ -31,11 +29,9 @@ class User(
     var password: String,
     var fullname: String
 ) extends Model {
- 
-    var isAdmin: Boolean = false
- 
-    def this() = this(null, null, null)
+    var isAdmin = false
 }
+object Users extends QueryOn[User]
 
 If you're new to Scala then this class definition might look a bit strange. What is happening here is that the definition of 3 fields is combined with the definition of the primary constructor. Then there is a fourth field which is set to false by default.
 
@@ -75,67 +71,63 @@ Open a browser to the "http://localhost:9000/@tests":http://localhost:9000/@test
 
 !images/guide2-1!
 
-To test the model part of the application we will use a JUnit test. As you see a default BasicTests.java already exists, so let's open it (**/yabe/test/BasicTest.scala**):
+To test the model part of the application we will use a ScalaTest test. As you see a default BasicTests.java already exists, so let's delete it and open **/yabe/test/BasicTest.scala** and edit it as follows,:
 
-bc. import org.junit._
-import org.junit.Assert._
+bc. import java.util._
 import play.test._
-import play.db.jpa.QueryFunctions._
 import models._
  
-class BasicTest extends UnitTest {
+import scala.collection.JavaConversions._
  
-    @Test
-    def aVeryImportantThingToTest() {
-    	
-        assertEquals(2, 1 + 1)
-    }
- 
+import org.scalatest.{FlatSpec,BeforeAndAfterEach}
+import org.scalatest.matchers.ShouldMatchers
+import scala.collection.mutable.Stack
+  
+class BasicTest extends UnitFlatSpec with ShouldMatchers {
+  it should "a Very Important Thing To Test" in {
+     2 should equal (1+1)
+  }  
 }
 
 
-Remove the useless default test (aVeryImportantThingToTest) and create a test that tries to create a new user and retrieve it:
+Remove the useless default test (a Very Important Thing To Test) and create a test that tries to create a new user and retrieve it:
 
-bc. @Test
-def createAndRetrieveUser() {
-    // Create a new user and save it
-    new User("bob@gmail.com", "secret", "Bob").save()
+bc. it should "create and retrieve a user" in {
+        // Create a new user and save it
+        new User("bob@gmail.com", "secret", "Bob").save()
  
-    // Retrieve the user with bob's email address
-    val bob = find[User]("byEmail", "bob@gmail.com").first
+        // Retrieve the user with bob username
+        var bob = Users.find("byEmail", "bob@gmail.com").first
  
-    // Test 
-    assertNotNull(bob)
-    assertEquals("Bob", bob.fullname)
+        // Test 
+        bob should not be (None)
+        "Bob" should equal (bob.get.fullname)
 }
-
 
 As you can see, the Model superclass gives us the very useful **save()** method and the QueryFunctions import gives us the **find** function.
 Select **BasicTests** in the test runner, click start and check that all is green. 
 
 We will need a method on User that checks if a user with a specified username and password exists. But in Scala, methods that don't act on a specific instance need to be defined in a companion object. Let's write it and test it.
 
-In the **User.scala** source, add an import statement (either at the top or just before the new code), the User **object** definition and the **connect()** method:
+In the **user.scala** source, add an import statement (either at the top or just before the new code), the User **object** definition and the **connect()** method:
 
-bc. import play.db.jpa.QueryFunctions._
- 
-object User {
+bc. object Users extends QueryOn[User] {
     def connect(email: String, password: String) = {
-        find[User]("byEmailAndPassword", email, password).first
+        find("byEmailAndPassword", email, password).first
     }
 }
 
+
 And now the test case:
 
-bc. @Test
-def tryConnectAsUser() {
-    // Create a new user and save it
-    new User("bob@gmail.com", "secret", "Bob").save()
+bc. it should "call connect on User" in {
+        // Create a new user and save it
+        new User("bob@gmail.com", "secret", "Bob").save()
  
-    // Test 
-    assertNotNull(User.connect("bob@gmail.com", "secret"))
-    assertNull(User.connect("bob@gmail.com", "badpassword"))
-    assertNull(User.connect("tom@gmail.com", "secret"))
+        // Test 
+        Users.connect("bob@gmail.com", "secret") should not be (None)
+        Users.connect("bob@gmail.com", "badpassword") should be (None)
+        Users.connect("tom@gmail.com", "secret") should be (None)
 }
 
 Each time you make a modification you can run all the tests from the play test runner to make sure you didn't break anything. 
@@ -146,9 +138,9 @@ The Post class will represent blog posts. Let's write a first implementation:
 
 bc. package models
  
-import java.util._
-import javax.persistence._
+import java.util.{Date,TreeSet,Set=>JSet,List=>JList,ArrayList}
 import play.db.jpa._
+import play.data.Validators._
  
 @Entity
 class Post(
@@ -158,11 +150,9 @@ class Post(
     @Lob
     var content: String
 ) extends Model {
- 
-    var postedAt: Date = new Date()
- 
-    def this() = this(null, null, null)
+    var postedAt = new Date()
 }
+object Posts extends QueryOn[Post]
 
 Here we use the **@Lob** annotation to tell JPA to use a large text database type to store the post content. We have declared the relation to the User class using **@ManyToOne**. That means that each Post is authored by a single User, and that each User can author several Posts.
 
@@ -170,46 +160,41 @@ We will write a new test case to check that the Post class works as expected. Bu
 
 So let's write a JUnit **setup()** method to delete the database before each test:
 
-bc. public class BasicTest extends UnitTest {
+bc. class BasicTest extends UnitFlatSpec with ShouldMatchers with BeforeAndAfterEach {
  
-    @Before
-    def setup() {
+    override def beforeEach() {
         Fixtures.deleteAll()
     }
-    
+ 
     ...
  
 }
 
-p(note). The **@Before** concept is a core concept of the JUnit testing tool.
-
 As you can see, the Fixtures class is a helper to deal with your database during tests. Run the test again to check that you don't have broken anything, and start to write the next test:
 
-bc. @Test
-def createPost() {
-    // Create a new user and save it
-    val bob: User = new User("bob@gmail.com", "secret", "Bob").save()
+bc. it should "create Post" in {
+        // Create a new user and save it
+        var bob = new User("bob@gmail.com", "secret", "Bob").save()
  
-    // Create a new post
-    new Post(bob, "My first post", "Hello world").save()
+        // Create a new post
+        new Post(bob, "My first post", "Hello world").save()
  
-    // Test that the post has been created
-    assertEquals(1L, count[Post])
+        // Test that the post has been created
+        1 should equal (Posts.count())
  
-    // Retrieve all post created by bob
-    val bobPosts = find[Post]("byAuthor", bob).fetch
+        // Retrieve all post created by bob
+        var bobPosts = Posts.find("byAuthor", bob).fetch
  
-    // Tests
-    assertEquals(1, bobPosts.length)
-    val firstPost = bobPosts.head
-    assertNotNull(firstPost)
-    assertEquals(bob, firstPost.author)
-    assertEquals("My first post", firstPost.title)
-    assertEquals("Hello world", firstPost.content)
-    assertNotNull(firstPost.postedAt)
+        // Tests
+        1 should equal (bobPosts.size)
+        var firstPost = bobPosts(0)
+        firstPost should not be (null)
+        bob should equal (firstPost.author)
+        "My first post" should equal ( firstPost.title)
+        "Hello world" should equal ( firstPost.content)
+        firstPost.postedAt should not be (null)
 }
-
-
+    
 h2. <a>Finish with Comment</a>
 
 The last thing that we need to add at this first model draft is the ability to attach comments to posts.
@@ -219,8 +204,8 @@ The creation of the Comment class is pretty straightforward.
 bc. package models
  
 import java.util._
-import javax.persistence._
 import play.db.jpa._
+import play.data.Validators._
  
 @Entity
 class Comment(
@@ -230,43 +215,40 @@ class Comment(
     @Lob
     var content: String
 ) extends Model {
- 
-    var postedAt: Date = new Date()
- 
-    def this() = this(null, null, null)
+    var postedAt = new Date()
 }
+object Comments extends QueryOn[Comment]
 
 Let's write a first test case:
 
-bc. @Test
-def postComments() {
-    // Create a new user and save it
-    val bob: User = new User("bob@gmail.com", "secret", "Bob").save()
+bc. it should "post Comments" in {
+        // Create a new user and save it
+        var bob = new User("bob@gmail.com", "secret", "Bob").save()
  
-    // Create a new post
-    val bobPost: Post = new Post(bob, "My first post", "Hello world").save()
+        // Create a new post
+        var bobPost = new Post(bob, "My first post", "Hello world").save()
  
-    // Post a first comment
-    new Comment(bobPost, "Jeff", "Nice post").save()
-    new Comment(bobPost, "Tom", "I knew that !").save()
+        // Post a first comment
+        new Comment(bobPost, "Jeff", "Nice post").save()
+        new Comment(bobPost, "Tom", "I knew that !").save()
  
-    // Retrieve all comments
-    val bobPostComments = find[Comment]("byPost", bobPost).fetch
+        // Retrieve all comments
+        var bobPostComments = Comments.find("byPost", bobPost).fetch
  
-    // Tests
-    assertEquals(2, bobPostComments.length)
+        // Tests
+        2 should equal (bobPostComments.size)
  
-    val firstComment = bobPostComments(0)
-    assertNotNull(firstComment)
-    assertEquals("Jeff", firstComment.author)
-    assertEquals("Nice post", firstComment.content)
-    assertNotNull(firstComment.postedAt)
+        var firstComment = bobPostComments(0)
+        firstComment should not be (null)
+        "Jeff" should equal ( firstComment.author)
+        "Nice post" should equal ( firstComment.content)
+        firstComment.postedAt should not be (null)
  
-    val secondComment = bobPostComments(1)
-    assertNotNull(secondComment)
-    assertEquals("Tom", secondComment.author)
-    assertEquals("I knew that !", secondComment.content)
-    assertNotNull(secondComment.postedAt)
+        var secondComment = bobPostComments(1)
+        secondComment should not be (null)
+        "Tom" should equal ( secondComment.author)
+        "I knew that !" should equal ( secondComment.content)
+        secondComment.postedAt should not be (null)
 }
 
 You see that the navigation between Post and Comments is not very easy: we need to use a query to retrieve all comments attached to Post. We can do better by setting up the other side of the relationship to the Post class. 
@@ -275,7 +257,7 @@ Add the comments field to the Post class:
 
 bc. ...
     @OneToMany(mappedBy="post", cascade=Array(CascadeType.ALL))
-    var comments: List[Comment] = new ArrayList[Comment]
+    var comments: JList[Comment] = new ArrayList[Comment]
 ...
 
 Note how we have used the **mappedBy** attribute to tell JPA that the Post class maintains the relationship. When you define bi-directional relation with JPA it is very important to tell which side will maintain the relationship. In this case, since the Comments belong to the Post it's better that the Comment class maintains the relationship.
@@ -284,47 +266,47 @@ We have set the **casacade** property to tell JPA that we want that the Post del
 
 With this new relationship, we will add a helper method to the Post class to simplify adding comments:
 
-bc. def addComment(author: String, content: String): Post = {
+bc. def addComment(author: String, content: String) = {
     val newComment: Comment = new Comment(this, author, content).save()
-    this.comments.add(newComment)
-    return this
+    comments.add(newComment)
+    this
 }
 
 Let's write another test case to check that:
 
-bc. @Test
-def useTheCommentsRelation() {
-    // Create a new user and save it
-    val bob: User = new User("bob@gmail.com", "secret", "Bob").save()
+bc. it should "use the comments relation" in {
+        // Create a new user and save it
+        var bob = new User("bob@gmail.com", "secret", "Bob").save()
  
-    // Create a new post
-    var bobPost: Post = new Post(bob, "My first post", "Hello world").save()
+        // Create a new post
+        var bobPost = new Post(bob, "My first post", "Hello world").save()
  
-    // Post a first comment
-    bobPost.addComment("Jeff", "Nice post")
-    bobPost.addComment("Tom", "I knew that !")
+        // Post a first comment
+        bobPost.addComment("Jeff", "Nice post")
+        bobPost.addComment("Tom", "I knew that !")
  
-    // Count things
-    assertEquals(1L, count[User])
-    assertEquals(1L, count[Post])
-    assertEquals(2L, count[Comment])
+        // Count things
+        1 should equal (Users.count())
+        1 should equal (Posts.count())
+        2 should equal (Comments.count())
  
-    // Retrieve Bob's post
-    bobPost = find[Post]("byAuthor", bob).first
-    assertNotNull(bobPost)
+        // Retrieve the bob post
+        val getBobPost = Posts.find("byAuthor", bob).first
+        getBobPost should not be (None)
  
-    // Navigate to comments
-    assertEquals(2, bobPost.comments.size())
-    assertEquals("Jeff", bobPost.comments.get(0).author)
+        // Navigate to comments
+        2  should equal (getBobPost.get.comments.size)
+        "Jeff" should equal (getBobPost.get.comments(0).author)
  
-    // Delete the post
-    bobPost.delete();
+        // Delete the post
+        getBobPost.get.delete()
  
-    // Check the all comments have been deleted
-    assertEquals(1L, count[User])
-    assertEquals(0L, count[Post])
-    assertEquals(0L, count[Comment])
+        // Chech the all comments have been deleted
+        1 should equal (Users.count())
+        0 should equal (Posts.count())
+        0 should equal (Comments.count())
 }
+
 
 Is it green?
 
@@ -347,44 +329,49 @@ User(bob):
 
 Well, because the data.yml file is a litle big, you can "download it here":files/data.yml.
 
+data.yml includes date data like '2009-06-06', so you should confirm that conf/application.conf inclues the following line,
+
+date.format=yyyy-MM-dd
+
 Now we create create a test case that loads this data and run some assertions over it:
 
-bc. @Test
-def fullTest() {
-    Fixtures.load("data.yml")
+bc. it should "work if things combined together" in {
+        Fixtures.load("data.yml")
  
-    // Count things
-    assertEquals(2L, count[User])
-    assertEquals(3L, count[Post])
-    assertEquals(3L, count[Comment])
+        // Count things
+        2 should equal (Users.count())
+        3 should equal (Posts.count())
+        3 should equal (Comments.count())
  
-    // Try to connect as users
-    assertNotNull(User.connect("bob@gmail.com", "secret"))
-    assertNotNull(User.connect("jeff@gmail.com", "secret"))
-    assertNull(User.connect("jeff@gmail.com", "badpassword"))
-    assertNull(User.connect("tom@gmail.com", "secret"))
+        // Try to connect as users
+        Users.connect("bob@gmail.com", "secret") should not be (None)
+        Users.connect("jeff@gmail.com", "secret") should not be (None)
+        Users.connect("jeff@gmail.com", "badpassword") should be (None)
+        Users.connect("tom@gmail.com", "secret") should be (None)
  
-    // Find all bob posts
-    val bobPosts = find[Post]("author.email", "bob@gmail.com").fetch
-    assertEquals(2, bobPosts.length)
+        // Find all bob posts
+        var bobPosts = Posts.find("author.email", "bob@gmail.com").fetch
+        2 should equal (bobPosts.size)
  
-    // Find all comments related to bob posts
-    val bobComments = find[Comment]("post.author.email", "bob@gmail.com").fetch
-    assertEquals(3, bobComments.length)
+        // Find all comments related to bob posts
+        var bobComments = Comments.find("post.author.email", "bob@gmail.com").fetch
+        3 should equal (bobComments.size)
  
-    // Find the most recent post
-    val frontPost = find[Post]("order by postedAt desc").first
-    assertNotNull(frontPost)
-    assertEquals("About the model layer", frontPost.title)
+        // Find the most recent post
+        var frontPost = Posts.find("order by postedAt desc").first
  
-    // Check that this post has two comments
-    assertEquals(2, frontPost.comments.size())
+        frontPost should not be (None)
+        "About the model layer" should equal (frontPost.get.title)
  
-    // Post a new comment
-    frontPost.addComment("Jim", "Hello guys")
-    assertEquals(3, frontPost.comments.size())
-    assertEquals(4L, count[Comment])
+        // Check that this post has two comments
+        2 should equal (frontPost.get.comments.size)
+ 
+        // Post a new comment
+        frontPost.get.addComment("Jim", "Hello guys")
+        3 should equal (frontPost.get.comments.size)
+        4 should equal (Comments.count())
 }
+
 
 h2. <a>Save your work</a>
 
