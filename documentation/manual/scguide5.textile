@@ -102,13 +102,11 @@ bc. def postComment(
         @Required(message="Author is required") author: String, 
         @Required(message="A message is required") content: String,
         @Required(message="Please type the code") code: String,
-        randomID: String) 
-{
+        randomID: String) {
     val post = Posts.findById(postId).getOrNotFound
     validation.equals(
         code, Cache.get(randomID).orNull
     ).message("Invalid code. Please type it again")
- 
     if(validation.hasErrors) {
       "@show".asTemplate(post, randomID)
     }

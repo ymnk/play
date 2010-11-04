@@ -16,9 +16,7 @@ Let's create the **/yabe/app/bootstrap.scala** job that will load a set of defau
 
 bc. import play.jobs._
 import play.test._
- 
 import models._
-  
 @OnApplicationStart
 class Bootstrap extends Job {
     override def doJob {
@@ -48,12 +46,9 @@ We will keep these components but add code to them to load the posts list and di
 Open the **/yabe/app/controllers/application.java** controller and modify the **index()** action to load the posts list, as is:
 
 bc. package controllers
- 
 import play._
 import play.mvc._
- 
 import models._
- 
 object Application extends Controller {
     def index = {
         val frontPost = Posts.find("order by postedAt desc").first.orNull
@@ -279,7 +274,6 @@ One way to execute the same code for each action of a controller (or a hierarchy
 Let's add the **Defaults** trait and mix-in Application controller with it:
 
 bc. trait Defaults extends Controller {
-    
     @Before def setDefaults {
         renderArgs += "blogTitle" -> configuration("blog.title")
         renderArgs += "blogBaseline" -> configuration("blog.baseline") 

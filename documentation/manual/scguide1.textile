@@ -95,14 +95,10 @@ A play application has several entry points, one for each URL. We call these met
 Let's see what the **controllers.Application** controller looks like. Open the **yabe-with-scala/app/controllers/Application.scala** source file:
 
 bc. package controllers
- 
 import play._
 import play.mvc._
- 
 object Application extends Controller {
-    
     def index = Template()
-    
 }
 
 As you see, a controller is not a class but an object. It extends the **play.mvc.Controller** class. This class provides all useful methods for controllers, like the **Template()** method we use in the index action.
